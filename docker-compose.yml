@@ -1,0 +1,10 @@
+# Sobe apenas a API. Os entregadores e a central rodam na sua máquina,
+# apontando para http://localhost:8000.
+#   docker compose up --build
+services:
+  api:
+    build: .
+    container_name: api-entregas
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
