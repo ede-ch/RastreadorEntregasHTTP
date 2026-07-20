@@ -50,6 +50,17 @@ python scripts/simular_frota.py --n 10        # 10 entregadores simultâneos
 python scripts/simular_frota.py --n 50 --intervalo 1
 ```
 
+### Medindo as métricas do trabalho (benchmark)
+
+Com o servidor no ar, o script abaixo dispara N requisições e imprime **tempo de
+resposta (média/p95)**, **volume de dados por requisição** e **taxa de sucesso** —
+comparando ainda **keep-alive** vs. **uma conexão nova por requisição**:
+
+```bash
+python scripts/benchmark.py --n 50
+python scripts/benchmark.py --n 200 --url http://localhost:8000
+```
+
 ### Usando Docker para o servidor
 
 ```bash
