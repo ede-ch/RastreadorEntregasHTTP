@@ -131,13 +131,14 @@ O código foi escrito para evidenciar as características do HTTP discutidas no 
 ```
 http-rastreamento-entregas/
 ├── src/
-│   ├── config.py          # URLs, endpoints, timeouts, intervalos
+│   ├── config.py          # URLs, endpoints, timeouts, retry, fábrica de Session
 │   ├── modelos.py         # modelos Pydantic (contrato das mensagens)
-│   ├── servidor.py        # API REST (FastAPI)
+│   ├── servidor.py        # API REST (FastAPI) + modo instável (FALHA_PCT)
 │   ├── entregador.py      # cliente: simula um entregador (requests)
 │   └── central.py         # cliente: painel de monitoramento (polling)
 ├── scripts/
-│   └── simular_frota.py   # sobe N entregadores simultâneos
+│   ├── simular_frota.py   # sobe N entregadores simultâneos
+│   └── benchmark.py       # mede latência, volume e taxa de sucesso
 ├── docs/
 │   └── ARQUITETURA.md
 ├── Dockerfile
