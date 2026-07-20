@@ -41,9 +41,10 @@ class Entregador:
         self.entregas_concluidas = 0
         self._rodando = True
 
-        # Session reaproveita a conexão TCP (keep-alive) entre as requisições.
-        self.sessao = requests.Session()
-        self.sessao.headers.update({"Content-Type": "application/json"})
+        # Session com keep-alive (reuso de conexão TCP) + retry com backoff:
+        # se uma requisição falhar (timeout, 503...), a própria Session tenta de
+        # novo com espera crescente antes de propagar o erro. Ver config.nova_sessao().
+        self.sessao = config.nova_sessao()
 
     # ----- requisições ----------------------------------------------------
     def _post_localizacao(self):

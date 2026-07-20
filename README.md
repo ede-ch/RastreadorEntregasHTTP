@@ -61,6 +61,20 @@ python scripts/benchmark.py --n 50
 python scripts/benchmark.py --n 200 --url http://localhost:8000
 ```
 
+### Testando resiliência (servidor instável)
+
+Os clientes (entregador e central) usam uma `Session` com **retry + backoff
+exponencial**. Para exercitar isso, suba o servidor em modo instável via
+variáveis de ambiente — sem elas, o comportamento é o normal:
+
+```bash
+# ~30% das requisições respondem 503, com 800ms de latência artificial
+FALHA_PCT=30 FALHA_LATENCIA_MS=800 uvicorn src.servidor:app
+```
+
+Com o servidor assim, um entregador continua entregando (reenviando as
+requisições que falham) em vez de desistir na primeira falha.
+
 ### Usando Docker para o servidor
 
 ```bash
@@ -138,8 +152,8 @@ http-rastreamento-entregas/
 Alinhado às propostas da apresentação:
 
 - Adicionar **HTTPS/TLS** e autenticação (token) para medir o custo da segurança.
-- Comparar **conexão por requisição vs. keep-alive** com números.
-- Testar **resiliência** com o servidor instável (timeouts, retry, *backoff*).
+- ~~Comparar **conexão por requisição vs. keep-alive** com números.~~ ✅ `scripts/benchmark.py`
+- ~~Testar **resiliência** com o servidor instável (timeouts, retry, *backoff*).~~ ✅ `FALHA_PCT` + retry nos clientes
 
 ---
 

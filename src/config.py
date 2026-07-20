@@ -7,6 +7,10 @@ Todos os valores podem ser sobrescritos por variáveis de ambiente.
 """
 import os
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 # ---------------------------------------------------------------------------
 # Servidor / API
 # ---------------------------------------------------------------------------
@@ -54,6 +58,38 @@ INTERVALO_PADRAO = 2.0  # segundos entre envios de localização
 # A central, por não ter "push" no HTTP, precisa CONSULTAR (polling) de tempos
 # em tempos. Este é o intervalo entre cada consulta.
 INTERVALO_POLLING = 2.0
+
+# ---------------------------------------------------------------------------
+# Resiliência (retry + backoff)
+# ---------------------------------------------------------------------------
+# No HTTP cada mensagem é uma requisição independente que pode falhar sozinha
+# (timeout, 503, conexão recusada). Em vez de desistir na primeira falha, os
+# clientes tentam de novo com espera crescente (backoff exponencial). Isso
+# torna a comparação com o MQTT mais justa e rende discussão no relatório sobre
+# o custo/benefício de reenviar no modelo requisição/resposta.
+RETRY_TOTAL = int(os.getenv("RETRY_TOTAL", "3"))       # tentativas extras por requisição
+RETRY_BACKOFF = float(os.getenv("RETRY_BACKOFF", "0.5"))  # fator de espera (s): 0.5, 1, 2...
+
+
+def nova_sessao() -> requests.Session:
+    """
+    Cria uma `requests.Session` já configurada com keep-alive (reuso de conexão
+    TCP) e retry com backoff exponencial. É a fábrica usada pelo entregador e
+    pela central, para que a política de resiliência fique num lugar só.
+    """
+    sessao = requests.Session()
+    retry = Retry(
+        total=RETRY_TOTAL,
+        backoff_factor=RETRY_BACKOFF,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=frozenset(["GET", "POST", "PUT"]),
+        raise_on_status=False,
+    )
+    adaptador = HTTPAdapter(max_retries=retry)
+    sessao.mount("http://", adaptador)
+    sessao.mount("https://", adaptador)
+    sessao.headers.update({"Content-Type": "application/json"})
+    return sessao
 
 # Ponto de partida geográfico: Alegrete/RS (sede da UNIPAMPA).
 ORIGEM_LAT = -29.7833
