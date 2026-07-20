@@ -53,10 +53,13 @@ def desenhar_painel(frota: list[dict]):
 def main():
     print(f"Central consultando {config.URL_FROTA} a cada "
           f"{config.INTERVALO_POLLING}s...")
+    # Session com retry+backoff: uma instabilidade pontual do servidor não
+    # derruba o painel — a própria Session reenvia a consulta antes de desistir.
+    sessao = config.nova_sessao()
     try:
         while True:
             try:
-                r = requests.get(config.URL_FROTA, timeout=config.TIMEOUT)
+                r = sessao.get(config.URL_FROTA, timeout=config.TIMEOUT)
                 r.raise_for_status()
                 desenhar_painel(r.json())
             except requests.RequestException as e:
@@ -64,6 +67,8 @@ def main():
             time.sleep(config.INTERVALO_POLLING)
     except KeyboardInterrupt:
         print("\nEncerrando central...")
+    finally:
+        sessao.close()
 
 
 if __name__ == "__main__":

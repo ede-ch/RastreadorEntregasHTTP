@@ -25,7 +25,9 @@ Como rodar:
     # ou, da raiz do projeto:
     uvicorn src.servidor:app --reload
 """
+import asyncio
 import os
+import random
 import sys
 
 # Garante que os módulos locais (modelos, config) sejam encontrados tanto ao
@@ -33,7 +35,8 @@ import sys
 # (uvicorn src.servidor:app).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 
 from modelos import EntregadorInfo, EstadoEntrega, Localizacao, Status
 
@@ -42,6 +45,31 @@ app = FastAPI(
     description="Central de monitoramento de uma frota de entregadores via HTTP.",
     version="1.0.0",
 )
+
+# ---------------------------------------------------------------------------
+# Modo "servidor instável" (opcional, para testar resiliência do cliente)
+# ---------------------------------------------------------------------------
+# Sem variáveis de ambiente o servidor se comporta normalmente. Definindo:
+#   FALHA_PCT=30            -> ~30% das requisições respondem 503
+#   FALHA_LATENCIA_MS=800   -> adiciona 800ms de latência antes de responder
+# dá para observar, na prática, o retry+backoff dos clientes reagindo a um
+# servidor ruim — justamente o item "resiliência" dos trabalhos futuros.
+FALHA_PCT = float(os.getenv("FALHA_PCT", "0"))
+FALHA_LATENCIA_MS = float(os.getenv("FALHA_LATENCIA_MS", "0"))
+
+
+@app.middleware("http")
+async def instabilidade(request: Request, call_next):
+    # /healthz nunca é sabotado: a central o usa para saber se o servidor vive.
+    if request.url.path != "/healthz" and (FALHA_PCT > 0 or FALHA_LATENCIA_MS > 0):
+        if FALHA_LATENCIA_MS > 0:
+            await asyncio.sleep(FALHA_LATENCIA_MS / 1000.0)
+        if FALHA_PCT > 0 and random.random() < FALHA_PCT / 100.0:
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "instabilidade simulada (FALHA_PCT)"},
+            )
+    return await call_next(request)
 
 # "Banco de dados" em memória. Em produção isto seria Postgres, Redis, etc.
 frota: dict[str, EntregadorInfo] = {}
