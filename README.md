@@ -110,19 +110,23 @@ O código foi escrito para evidenciar as características do HTTP discutidas no 
 - **Requisição/Resposta:** cada mensagem é uma transação independente; o servidor é passivo e só responde quando perguntado.
 - **Métodos com semântica correta:** `POST` cria, `PUT` atualiza, `GET` consulta sem efeitos colaterais.
 - **Códigos de status:** `201 Created`, `200 OK`, `404 Not Found` e `422` (validação automática do Pydantic quando o JSON foge ao contrato).
-- **Conexão por requisição vs. keep-alive:** o cliente usa `requests.Session`, que reaproveita a conexão TCP. Esse é o ponto exato que a apresentação levanta sobre o custo de rede do HTTP — dá para discutir, no relatório, o impacto de abrir uma nova conexão a cada mensagem.
+- **Conexão por requisição vs. keep-alive:** o cliente usa `requests.Session`, que reaproveita a conexão TCP. Esse é o ponto exato que a apresentação levanta sobre o custo de rede do HTTP — e o `scripts/benchmark.py` mede esse impacto com números (nova conexão a cada mensagem chega a ser ~20× mais lenta que keep-alive).
 - **Ausência de push → polling:** como o HTTP não empurra dados, a central precisa *consultar* periodicamente, gerando tráfego mesmo quando nada muda. É o contraste central com o modelo publish/subscribe do MQTT.
+- **Falha isolada e retry:** como cada requisição é independente, ela pode falhar sozinha (timeout, `503`). Os clientes usam `Session` com *retry + backoff exponencial* (`config.nova_sessao()`), reenviando antes de desistir — dá para observar isso rodando o servidor em modo instável (`FALHA_PCT`).
 
 ---
 
 ## Relação com as métricas do trabalho
 
-| Métrica do trabalho      | Onde aparece neste projeto                                           |
-|--------------------------|---------------------------------------------------------------------|
-| Tempo de Resposta (ms)   | latência da chamada `requests` (request → response)                 |
-| Volume de Dados (KB)     | cabeçalhos HTTP + corpo JSON por requisição                          |
-| Taxa de Sucesso (%)      | proporção de respostas `2xx` sobre o total de requisições            |
-| Uso de CPU / Memória     | custo de manter o servidor + abrir/manter conexões                  |
+Todas as três primeiras métricas são coletadas automaticamente por
+[`scripts/benchmark.py`](scripts/benchmark.py) — é só rodá-lo com o servidor no ar.
+
+| Métrica do trabalho      | Onde aparece neste projeto                                           | Como medir            |
+|--------------------------|---------------------------------------------------------------------|-----------------------|
+| Tempo de Resposta (ms)   | latência da chamada `requests` (request → response)                 | `benchmark.py` (média/p95) |
+| Volume de Dados (bytes)  | cabeçalhos HTTP + corpo JSON por requisição                          | `benchmark.py` (bytes/req) |
+| Taxa de Sucesso (%)      | proporção de respostas `2xx` sobre o total de requisições            | `benchmark.py` + `FALHA_PCT` |
+| Uso de CPU / Memória     | custo de manter o servidor + abrir/manter conexões                  | monitor do SO         |
 
 ---
 
@@ -148,13 +152,16 @@ http-rastreamento-entregas/
 
 ---
 
+## Extensões já implementadas
+
+Propostas da apresentação que já viraram código:
+
+- **Comparação conexão por requisição vs. keep-alive, com números** → [`scripts/benchmark.py`](scripts/benchmark.py) mede latência, volume e taxa de sucesso nos dois modos.
+- **Resiliência a servidor instável** → clientes com *retry + backoff* (`config.nova_sessao()`) e servidor com modo de falha injetável (`FALHA_PCT` / `FALHA_LATENCIA_MS`).
+
 ## Trabalhos futuros
 
-Alinhado às propostas da apresentação:
-
 - Adicionar **HTTPS/TLS** e autenticação (token) para medir o custo da segurança.
-- ~~Comparar **conexão por requisição vs. keep-alive** com números.~~ ✅ `scripts/benchmark.py`
-- ~~Testar **resiliência** com o servidor instável (timeouts, retry, *backoff*).~~ ✅ `FALHA_PCT` + retry nos clientes
 
 ---
 
